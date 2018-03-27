@@ -4,6 +4,7 @@
 const HLT = 0b00000001;
 const LDI = 0b10011001;
 const PRN = 0b01000011;
+const MUL = 0b10101010;
 
 /**
  * Class for simulating a simple Computer (CPU & memory)
@@ -57,9 +58,12 @@ class CPU {
      * op can be: ADD SUB MUL DIV INC DEC CMP
      */
 	alu(op, regA, regB) {
+		let varA = this.reg[regA];
+		let varB = this.reg[regB];
 		switch (op) {
 			case 'MUL':
-				// !!! IMPLEMENT ME
+				this.reg[regA] = varA * varB;
+				// this.reg[regA] = this.reg[regA] * this.reg[regB];
 				break;
 		}
 	}
@@ -85,22 +89,54 @@ class CPU {
 		// outlined in the LS-8 spec.
 		switch (IR) {
 			case HLT: // leading zeros indicate a full byte
-				this.stopClock();
+				this.handle_HLT();
 				break;
 
 			case LDI:
-				this.reg[operandA] = operandB;
+				this.handle_LDI(operandA, operandB);
 				break;
 
 			case PRN:
-				console.log(this.reg[operandA]);
+				this.handle_PRN(operandA);
+				break;
+
+			case MUL:
+				this.handle_MUL(operandA, operandB);
 				break;
 
 			default:
-				console.log('Unknown instruction: ' + IR.toString(2));
-				this.stopClock();
+				this.handle_ERROR(IR);
 				break;
 		}
+
+		const handle_HLT = () => {
+			this.stopClock();
+		};
+		const handle_LDI = (operandA, operandB) => {
+			this.reg[operandA] = operandB;
+		};
+		const handle_PRN = (operandA) => {
+			console.log(this.reg[operandA]);
+		};
+		const handle_MUL = (operandA, operandB) => {
+			this.alu('MUL', operandA, operandB);
+		};
+		const handle_ERROR = (IR) => {
+			console.log('Unknown instruction: ' + IR.toString(2));
+			this.stopClock();
+		};
+		// const handle_HLT = () => { };
+		// const handle_HLT = () => { };
+		// const handle_HLT = () => { };
+
+		const branchTable = {
+			[LDI]: handle_LDI,
+			[HLT]: handle_HLT,
+			[PRN]: handle_PRN,
+			[MUL]: handle_MUL
+		};
+
+		branchTable[IR](operandA, operandB);
 
 		// Increment the PC register to go to the next instruction. Instructions
 		// can be 1, 2, or 3 bytes long. Hint: the high 2 bits of the
