@@ -5,6 +5,15 @@ const HLT = 0b00000001;
 const LDI = 0b10011001;
 const PRN = 0b01000011;
 const MUL = 0b10101010;
+const POP = 0b01001100;
+const PUSH = 0b01001101;
+const DEC = 0b01111001;
+const INC = 0b01111000;
+const CALL = 0b01001000;
+const RET = 0b00001001;
+const ADD = 0b10101000;
+
+const SP = 0x07;
 
 /**
  * Class for simulating a simple Computer (CPU & memory)
@@ -18,8 +27,11 @@ class CPU {
 
 		this.reg = new Array(8).fill(0); // General-purpose registers R0-R7
 
+		this.reg[SP] = 0xf4;
+
 		// Special-purpose registers
 		this.reg.PC = 0; // Program Counter
+		// this.reg.IR = 0; // Instruction Register
 	}
 
 	/**
@@ -65,6 +77,15 @@ class CPU {
 				this.reg[regA] = varA * varB;
 				// this.reg[regA] = this.reg[regA] * this.reg[regB];
 				break;
+			case 'INC':
+				this.reg[SP]++;
+				break;
+			case 'DEC':
+				this.reg[SP]--;
+				break;
+			case 'ADD':
+				this.reg[regA] = varA + varB;
+				break;
 		}
 	}
 
@@ -74,16 +95,18 @@ class CPU {
 	tick() {
 		// Load the instruction register (IR--can just be a local variable here)
 		// from the memory address pointed to by the PC. (I.e. the PC holds the
-		// index into memory of the next instruction.)
+		// index into memory of the current instruction.)
 		let IR = this.ram.read(this.reg.PC);
 
 		// Debugging output
-		//console.log(`${this.reg.PC}: ${IR.toString(2)}`);
+		// console.log(`${this.reg.PC}: ${IR.toString(2)}`);
 
 		// Get the two bytes in memory _after_ the PC in case the instruction
 		// needs them.
 		let operandA = this.ram.read(this.reg.PC + 1);
 		let operandB = this.ram.read(this.reg.PC + 2);
+		// console.log('opA:', operandA);
+		// console.log('opB:', operandB);
 
 		// Execute the instruction. Perform the actions for the instruction as
 		// outlined in the LS-8 spec.
@@ -121,19 +144,56 @@ class CPU {
 		const handle_MUL = (operandA, operandB) => {
 			this.alu('MUL', operandA, operandB);
 		};
+		const handle_ADD = (operandA, operandB) => {
+			this.alu('ADD', operandA, operandB);
+		};
+
 		const handle_ERROR = (IR) => {
 			console.log('Unknown instruction: ' + IR.toString(2));
 			this.stopClock();
 		};
-		// const handle_HLT = () => { };
-		// const handle_HLT = () => { };
-		// const handle_HLT = () => { };
+		const _push = (value) => {
+			handle_DEC();
+			this.ram.write(this.reg[SP], value);
+		};
+		const handle_PUSH = (operandA) => {
+			_push(this.reg[operandA]);
+		};
+		const _pop = () => {
+			const value = this.ram.read(this.reg[SP]);
+			handle_INC();
+			return value;
+		};
+		const handle_POP = () => {
+			this.reg[operandA] = _pop();
+		};
+		const handle_INC = () => {
+			this.alu('INC', SP);
+		};
+		const handle_DEC = () => {
+			this.alu('DEC', SP);
+		};
+		const handle_CALL = () => {
+			const nextAddr = this.reg.PC + 2;
+			_push(nextAddr);
+			this.reg.PC = this.reg[operandA];
+		};
+		const handle_RET = () => {
+			this.reg.PC = _pop();
+		};
 
 		const branchTable = {
 			[LDI]: handle_LDI,
 			[HLT]: handle_HLT,
 			[PRN]: handle_PRN,
-			[MUL]: handle_MUL
+			[MUL]: handle_MUL,
+			[PUSH]: handle_PUSH,
+			[POP]: handle_POP,
+			[INC]: handle_INC,
+			[DEC]: handle_DEC,
+			[CALL]: handle_CALL,
+			[RET]: handle_RET,
+			[ADD]: handle_ADD
 		};
 
 		if (Object.keys(branchTable).includes(IR.toString())) {
@@ -146,7 +206,9 @@ class CPU {
 		// can be 1, 2, or 3 bytes long. Hint: the high 2 bits of the
 		// instruction byte tells you how many bytes follow the instruction byte
 		// for any particular instruction.
-		this.reg.PC += (IR >>> 6) + 1;
+		if (!(IR === CALL || IR === RET)) {
+			this.reg.PC += (IR >>> 6) + 1;
+		}
 	}
 }
 
