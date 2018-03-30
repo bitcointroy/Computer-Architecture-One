@@ -12,8 +12,13 @@ const INC = 0b01111000;
 const CALL = 0b01001000;
 const RET = 0b00001001;
 const ADD = 0b10101000;
+const CMP = 0b10100000;
+const JMP = 0b01010000;
+const JNE = 0b01010010;
+const JEQ = 0b01010001;
 
 const SP = 0x07;
+let FL = ''; // last 3 of 8 bits are LGE
 
 /**
  * Class for simulating a simple Computer (CPU & memory)
@@ -86,6 +91,17 @@ class CPU {
 			case 'ADD':
 				this.reg[regA] = varA + varB;
 				break;
+			case 'CMP':
+				if (varA === varB) {
+					FL = '00000001';
+				} else {
+					if (varA < varB) {
+						FL = '00000100';
+					} else {
+						FL = '00000010';
+					}
+				}
+				break;
 		}
 	}
 
@@ -99,7 +115,7 @@ class CPU {
 		let IR = this.ram.read(this.reg.PC);
 
 		// Debugging output
-		// console.log(`${this.reg.PC}: ${IR.toString(2)}`);
+		// console.log(`Line ${this.reg.PC}: ${IR.toString(2)}`);
 
 		// Get the two bytes in memory _after_ the PC in case the instruction
 		// needs them.
@@ -181,6 +197,35 @@ class CPU {
 		const handle_RET = () => {
 			this.reg.PC = _pop();
 		};
+		const handle_CMP = (operandA, operandB) => {
+			// compare regA and regB
+			// set FL (flag)
+			this.alu('CMP', operandA, operandB);
+		};
+		const handle_JMP = () => {
+			// blind jump?
+			// Jump to specified PC
+			// console.log(`jumping to ${this.reg[operandA]}`);
+			// const nextAddr = this.reg.PC + 2;
+			// _push(nextAddr);
+			this.reg.PC = this.reg[operandA] - 2;
+		};
+		const handle_JNE = () => {
+			// Jump if FL flag is !equal
+			// console.log(`JNE requested, A: ${operandA} B: ${operandB}`);
+			// handle_CMP(operandA, operandB);
+			if (FL !== '00000001') {
+				handle_JMP();
+			}
+		};
+		const handle_JEQ = () => {
+			// Jump if FL flag is equal
+			// console.log(`JEQ requested, A: ${operandA} B: ${operandB}`);
+			// handle_CMP(operandA, operandB);
+			if (FL === '00000001') {
+				handle_JMP();
+			}
+		};
 
 		const branchTable = {
 			[LDI]: handle_LDI,
@@ -193,7 +238,11 @@ class CPU {
 			[DEC]: handle_DEC,
 			[CALL]: handle_CALL,
 			[RET]: handle_RET,
-			[ADD]: handle_ADD
+			[ADD]: handle_ADD,
+			[CMP]: handle_CMP,
+			[JMP]: handle_JMP,
+			[JNE]: handle_JNE,
+			[JEQ]: handle_JEQ
 		};
 
 		if (Object.keys(branchTable).includes(IR.toString())) {
